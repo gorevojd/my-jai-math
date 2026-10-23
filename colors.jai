@@ -38,53 +38,50 @@ int_from_hex_char_for_colors :: (char: u8) -> u8 {
     Example #FF00CC. Alfa will be of value 255 (fully opaque)
 
 */
+is_valid_hex_color :: (color_string: string) -> bool {
+    if color_string.count != 7 {
+        return false;
+    }
+    if color_string[0] != #char "#" {
+        return false;
+    }
+    for 1..6 {
+        char := color_string[it];
+        if char >= #char "0" && char <= #char "9" {
+            continue;
+        }
+        if char >= #char "A" && char <= #char "F" {
+            continue;
+        }
+        if char >= #char "a" && char <= #char "f" {
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
+
 color_from_hex :: (color_string: string) -> Color {
-    Basic.assert(color_string[0] == #char "#");
-    Basic.assert(color_string.count == 7);
-
-    if (color_string.count == 7 && color_string[0] == #char "#") {
-        result: Color = ---;
-
-        char_is_valid_hex_digit :: (char: u8) -> bool {
-            if char >= #char "a" && char <= #char "f" {
-                return true;
-            }
-
-            if char >= #char "A" && char <= #char "F" {
-                return true;
-            }
-
-            if char >= #char "0" && char <= #char "9" {
-                return true;
-            }
-
-            return false;
-        }
-
-        char_from_string :: (str: string, index: int) -> string #expand {
-            if index < 0 || index >= str.count { return ""; }
-
-            s: string;
-            s.count = 1;
-            s.data = str.data + index;
-            return s;
-        }
-
-        for 1..6 {
-            Basic.assert(char_is_valid_hex_digit(color_string[it]),
-                        Basic.tprint("Char % is invalid in hex %", char_from_string(color_string, it), color_string));
-        }
-
-        result.r = int_from_hex_char_for_colors(color_string[1]) * 16 + int_from_hex_char_for_colors(color_string[2]);
-        result.g = int_from_hex_char_for_colors(color_string[3]) * 16 + int_from_hex_char_for_colors(color_string[4]);
-        result.b = int_from_hex_char_for_colors(color_string[5]) * 16 + int_from_hex_char_for_colors(color_string[6]);
-        result.a = 255;
-
-        return result;
+    valid := is_valid_hex_color(color_string);
+    Basic.assert(valid, "A color must contain # followed by six hexadecimal digits.");
+    if !valid {
+        return .{255, 0, 255, 255};
     }
 
-    // As an error color - let's return bright magenta color
-    return .{255, 0, 255, 255};
+    result: Color = ---;
+    result.r = int_from_hex_char_for_colors(color_string[1]) * 16 + int_from_hex_char_for_colors(color_string[2]);
+    result.g = int_from_hex_char_for_colors(color_string[3]) * 16 + int_from_hex_char_for_colors(color_string[4]);
+    result.b = int_from_hex_char_for_colors(color_string[5]) * 16 + int_from_hex_char_for_colors(color_string[6]);
+    result.a = 255;
+    return result;
+}
+
+// Hex colors are authored in sRGB. Decode RGB with the accurate transfer;
+// alpha describes coverage and is passed through unchanged.
+linear_from_hex :: (color_string: string, alpha: float = 1.0) -> Linear_Color {
+    encoded := get_float_representation(color_from_hex(color_string));
+    encoded.a = alpha;
+    return srgb_to_linear_accurate(encoded);
 }
 
 get_float_representation :: (color: Color) -> Vec4 {
