@@ -270,6 +270,130 @@ unpack_rgba_from_u32 :: (packed: u32) -> Vec4 {
     return color;
 }
 
+
+#scope_module
+
+RGBA_U64_RED_SHIFT :: 0;
+RGBA_U64_GREEN_SHIFT :: 19;
+RGBA_U64_BLUE_SHIFT :: 38;
+RGBA_U64_ALPHA_SHIFT :: 56;
+RGBA_U64_RED_FRACTION_BITS :: 14;
+RGBA_U64_GREEN_FRACTION_BITS :: 14;
+RGBA_U64_BLUE_FRACTION_BITS :: 13;
+RGBA_U64_RGB_EXPONENT_BITS :: 5;
+RGBA_U64_RGB_EXPONENT_BIAS :: 15;
+RGBA_U64_RED_MAX: float : 65534.0;
+RGBA_U64_GREEN_MAX: float : 65534.0;
+RGBA_U64_BLUE_MAX: float : 65532.0;
+
+#scope_export
+
+// Linear HDR RGBA: R19/G19/B18/A8, from the least to the most significant bits.
+// RGB uses unsigned floating point with five exponent bits and exponent bias 15.
+// Exponents 1..30 are normal; exponent 0 has subnormals and no implicit leading bit.
+// Exponent 31 is reserved and decodes to the channel's largest finite value.
+pack_rgba_to_u64 :: (color: Linear_Color) -> u64 {
+    r := cast(u64) pack_unsigned_linear_channel(color.r, RGBA_U64_RED_FRACTION_BITS);
+    g := cast(u64) pack_unsigned_linear_channel(color.g, RGBA_U64_GREEN_FRACTION_BITS);
+    b := cast(u64) pack_unsigned_linear_channel(color.b, RGBA_U64_BLUE_FRACTION_BITS);
+    a := cast(u64) pack_linear_alpha(color.a);
+    return (r << RGBA_U64_RED_SHIFT) | (g << RGBA_U64_GREEN_SHIFT)
+        | (b << RGBA_U64_BLUE_SHIFT) | (a << RGBA_U64_ALPHA_SHIFT);
+}
+
+unpack_rgba_from_u64 :: (packed: u64) -> Linear_Color {
+    r := cast(u32) ((packed >> RGBA_U64_RED_SHIFT) & 0x7ffff);
+    g := cast(u32) ((packed >> RGBA_U64_GREEN_SHIFT) & 0x7ffff);
+    b := cast(u32) ((packed >> RGBA_U64_BLUE_SHIFT) & 0x3ffff);
+    a := cast(u32) (packed >> RGBA_U64_ALPHA_SHIFT);
+    return .{
+        unpack_unsigned_linear_channel(r, RGBA_U64_RED_FRACTION_BITS),
+        unpack_unsigned_linear_channel(g, RGBA_U64_GREEN_FRACTION_BITS),
+        unpack_unsigned_linear_channel(b, RGBA_U64_BLUE_FRACTION_BITS),
+        cast(float) a * (1.0 / 255.0)
+    };
+}
+
+#scope_module
+
+round_color_bits_to_even :: (value: u32, shift: int) -> u32 {
+    result := value >> shift;
+    remainder := value & ((cast(u32) 1 << shift) - 1);
+    half := cast(u32) 1 << (shift - 1);
+    if remainder > half || (remainder == half && (result & 1) != 0) {
+        result += 1;
+    }
+    return result;
+}
+
+pack_unsigned_linear_channel :: (value: float, $fraction_bits: int) -> u32 {
+    #assert fraction_bits == 14 || fraction_bits == 13;
+    bits := (.*) cast(*u32) *value;
+    source_exponent := (bits >> 23) & 0xff;
+    source_fraction := bits & 0x7fffff;
+    maximum := (cast(u32) 31 << fraction_bits) - 1;
+
+    if (bits & 0x80000000) != 0 || source_exponent == 0 {
+        return 0;
+    }
+    if source_exponent == 0xff {
+        if source_fraction != 0 {
+            return 0;
+        }
+        return maximum;
+    }
+
+    target_exponent := cast(int) source_exponent - 112;
+    if target_exponent >= 31 {
+        return maximum;
+    }
+
+    significand := source_fraction | 0x800000;
+    if target_exponent <= 0 {
+        shift := 136 - fraction_bits - cast(int) source_exponent;
+        if shift > 24 {
+            return 0;
+        }
+        return round_color_bits_to_even(significand, shift);
+    }
+
+    // Rounding the significand also carries into the next exponent, if needed.
+    rounded := round_color_bits_to_even(significand, 23 - fraction_bits);
+    encoded := (cast(u32) (target_exponent - 1) << fraction_bits) + rounded;
+    if encoded > maximum {
+        return maximum;
+    }
+    return encoded;
+}
+
+unpack_unsigned_linear_channel :: (encoded: u32, $fraction_bits: int) -> float {
+    #assert fraction_bits == 14 || fraction_bits == 13;
+    maximum := (cast(u32) 31 << fraction_bits) - 1;
+    if encoded > maximum {
+        encoded = maximum;
+    }
+
+    exponent := encoded >> fraction_bits;
+    fraction := encoded & ((cast(u32) 1 << fraction_bits) - 1);
+    bits: u32 = ---;
+    if exponent == 0 {
+        // The subnormal quantum is 2^(-14 - fraction_bits), exactly representable in float32.
+        bits = cast(u32) (113 - fraction_bits) << 23;
+        quantum := (.*) cast(*float) *bits;
+        return cast(float) fraction * quantum;
+    }
+
+    bits = ((exponent + 112) << 23) | (fraction << (23 - fraction_bits));
+    return (.*) cast(*float) *bits;
+}
+
+pack_linear_alpha :: (value: float) -> u32 {
+    scaled := cast(float64) clamp01(value) * 255.0;
+    return cast(u32) (scaled + 0.5);
+}
+
+#scope_export
+
 Colors :: struct {
     // MAIN
     TRANSPARENT :: #run srgba(0, 0, 0, 0);
