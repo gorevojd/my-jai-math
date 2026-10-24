@@ -44,6 +44,19 @@ rect_union :: (a: $T, b: T) -> T {
     return rect_min_max(minimum, maximum);
 }
 
+// Add this distance on each side without moving the center. Negative values inset the rectangle.
+expand_rect :: (rect: Rect, expand_radius: Vec2) -> Rect {
+    radius := rect.radius + expand_radius;
+    Basic.assert(radius.x >= 0.0 && radius.y >= 0.0);
+    return .{center = rect.center, radius = radius};
+}
+
+expand_rect :: (rect: Rect3D, expand_radius: Vec3) -> Rect3D {
+    radius := rect.radius + expand_radius;
+    Basic.assert(radius.x >= 0.0 && radius.y >= 0.0 && radius.z >= 0.0);
+    return .{center = rect.center, radius = radius};
+}
+
 // Perimeter
 get_perimeter :: (rect: Rect) -> float {
     dim := rect_dim(rect);
