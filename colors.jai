@@ -496,3 +496,19 @@ Colors :: struct {
     WHITE_SMOKE :: #run color_from_hex("#F5F5F5");
     BEIGE :: #run color_from_hex("#F5F5DC");
 }
+
+// Compile-time mirror of Colors. Adding a named sRGB swatch automatically adds its linear counterpart.
+LinearColors :: struct {
+    #insert #run make_linear_color_constants();
+}
+
+#scope_file
+make_linear_color_constants :: () -> string {
+    builder: Basic.String_Builder;
+    for member: type_info(Colors).members {
+        if member.flags & .CONSTANT && member.type == type_info(Color) {
+            Basic.print_to_builder(*builder, "% :: #run srgb_to_linear_accurate(get_float_representation(Colors.%));\n", member.name, member.name);
+        }
+    }
+    return Basic.builder_to_string(*builder);
+}
