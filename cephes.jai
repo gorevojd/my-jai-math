@@ -436,9 +436,11 @@ atan :: inline (x: float64) -> float64 {
 	    y = PIO2;
 	    flag = 1;
 	    x = -1/x;
-	} else if x <= 0.66 {
+	}
+	else if x <= 0.66 {
 	    y = 0;
-	} else {
+	}
+	else {
 	    y = PIO4;
 	    flag = 2;
 	    x = (x-1)/(x+1);
@@ -516,7 +518,8 @@ atan2 :: (y: float64, x: float64) -> float64 {
 
 			if signbit(x) return -PI;
 			return y;
-		} else {
+		}
+		else {
             // y is +0 if we get here.
 		    if x == 0 {
 			    if signbit(x) return PI;
@@ -854,10 +857,12 @@ ldexp :: (x: float64, pw2: s32) -> float64 {
 
 	        _float64 *= ldexp(1.0, e-1);
 	        return _float64;
-        } else {
+        }
+        else {
 	        return 0;
         }
-	} else {
+	}
+	else {
         _u64 &= 0x800f_ffff_ffff_ffff;
 	    _u64 |= (cast(u64)(e & 0x7ff)) << 52;
 
@@ -996,7 +1001,8 @@ log :: (x: float64) -> float64 {
 	        e -= 1;
 	        z = x - 0.5;
 	        y = 0.5 * z + 0.5;
-	    } else {
+	    }
+	    else {
             //  2 (x-1)/(x+1)
 	        z = x - 0.5;
 	        z -= 0.5;
@@ -1041,7 +1047,8 @@ log :: (x: float64) -> float64 {
     if x < SQRTH {
 	    e -= 1;
 	    x = ldexp(x, 1) - 1; /*  2x - 1  */
-	} else {
+	}
+	else {
 	    x = x - 1;
 	}
 
@@ -1187,7 +1194,8 @@ tancot :: (input_x: float64, $is_cotangent: bool) -> float64 {
     if input_x < 0  {
 	    x = -input_x;
 	    sign = -1;
-	} else {
+	}
+	else {
 	    x = input_x;
 	    sign = 1;
 	}
@@ -1225,14 +1233,16 @@ tancot :: (input_x: float64, $is_cotangent: bool) -> float64 {
 
     if zz > 1.0e-14 {
 	    y = z + z * (zz * polynomial(zz, TANCOT_P)/polynomial(zz, TANCOT_Q));
-    } else {
+    }
+    else {
 	    y = z;
     }
 
     if j & 2 {
 	    if is_cotangent y = -y;
 	    else y = -1/y;
-	} else {
+	}
+	else {
 	    if is_cotangent y = 1/y;
 	}
 
@@ -1314,7 +1324,8 @@ asin :: (x: float64) -> float64 {
     if x > 0 {
 	    sign = 1;
 	    a = x;
-	} else {
+	}
+	else {
 	    sign = -1;
 	    a = -x;
 	}
@@ -1359,7 +1370,8 @@ asin :: (x: float64) -> float64 {
 	    z = z + PIO4;
 
         return z * sign;
-	} else {
+	}
+	else {
         // arcsin(x)  =  x + x^3 P(x^2)/Q(x^2)
         // 0 <= x <= 0.625
         // Peak relative error = 1.2e-18
@@ -1651,7 +1663,8 @@ pow :: (x: float64, y: float64) -> float64 {
 			}
 
 		    return 1;
-		} else {
+		}
+		else {
 		    if !y_is_integer {
 			    /* noninteger power of negative number */
 			    Basic.log_error("Invalid arguments to pow(): (%, %)\n", x, y);

@@ -110,7 +110,8 @@ normalize :: (using p: Plane, tolerance: float = DEFAULT_EPSILON, fallback_norma
 
     if len <= tolerance {
         return .{normal = fallback_normal};
-    } else {
+    }
+    else {
         result := p;
         ilen := 1 / len;
         result.a *= ilen;
@@ -126,7 +127,8 @@ normalize :: (using p: Plane2D, tolerance: float = DEFAULT_EPSILON, fallback_nor
 
     if len <= tolerance {
         return .{normal = fallback_normal};
-    } else {
+    }
+    else {
         result := p;
         ilen := 1 / len;
         result.a *= ilen;

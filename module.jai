@@ -151,7 +151,8 @@ is_nan_is_inf :: (x: float64) -> (isnan: bool, isinf: bool) {
         raw_mantissa := uf & 0xf_ffff_ffff_ffff;
         if raw_mantissa == 0 {
             return false, true;
-        } else {
+        }
+        else {
             return true, false;
         }
     }
@@ -181,7 +182,8 @@ is_nan_is_inf :: (x: float32) -> (isnan: bool, isinf: bool) {
         raw_mantissa := uf & 0x7f_ffff;
         if raw_mantissa == 0 {
             return false, true;
-        } else {
+        }
+        else {
             return true, false;
         }
     }
