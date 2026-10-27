@@ -25,6 +25,18 @@ Vec4 :: struct {
     #overlay (x) rgb: Vec3;
 }
 
+valid_vector :: inline (v: Vec2) -> bool {
+    return is_finite(v.x) && is_finite(v.y);
+}
+
+valid_vector :: inline (v: Vec3) -> bool {
+    return is_finite(v.x) && is_finite(v.y) && is_finite(v.z);
+}
+
+valid_vector :: inline (v: Vec4) -> bool {
+    return is_finite(v.x) && is_finite(v.y) && is_finite(v.z) && is_finite(v.w);
+}
+
 // Make operations
 xy :: (x: float, y: float) -> Vec2 { return .{x, y}; }
 xy :: (s: float) -> Vec2 { return .{s, s}; }
