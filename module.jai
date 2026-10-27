@@ -9,6 +9,7 @@
 #load "segments.jai";
 #load "plane.jai";
 #load "euler.jai";
+#load "ray.jai";
 
 TAU   :: cast(float32) 6.283185;
 TAU64 :: 6.28318530717958648;

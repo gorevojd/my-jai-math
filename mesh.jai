@@ -23,7 +23,7 @@ get_mesh_triangle_point_indices :: inline (mesh: MeshInternalType($PointType), t
     return result;
 }
 
-get_mesh_triangle_points :: inline (mesh: MeshInternalType($PointType), index: int) -> [3] Vec2 {
+get_mesh_triangle_points :: inline (mesh: MeshInternalType($PointType), index: int) -> [3] PointType {
     result: [3] PointType;
 
     for i: 0..2 {
