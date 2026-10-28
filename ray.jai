@@ -280,6 +280,41 @@ ray_triangle_any :: (r: Ray,
     return found;
 }
 
+// Nearest triangle hit in [t_min, t_max]. Ray and vertices must use the same coordinate space.
+// Empty indices mean consecutive vertex triples. Triangles must be complete and indices in bounds.
+ray_mesh :: (r: Ray,
+             mesh: $T/interface Mesh3D,
+             t_min: float = 0.0,
+             t_max: float = FLOAT32_INFINITY) -> (hit: bool, result: RayIntersectionResult)
+{
+    view: Mesh3D = .{vertices = mesh.vertices, indices = mesh.indices};
+    found := false;
+    nearest: RayIntersectionResult;
+    nearest_t := t_max;
+    for triangle: 0..get_mesh_triangle_count(view) - 1 {
+        points := get_mesh_triangle_points(view, triangle);
+        triangle_hit, intersection := ray_triangle(r, points[0], points[1], points[2], t_min, nearest_t);
+        if triangle_hit && (!found || intersection.t < nearest_t) {
+            found = true;
+            nearest = intersection;
+            nearest_t = intersection.t;
+        }
+    }
+    return found, nearest;
+}
+
+// Same geometry contract as ray_mesh; stops at the first hit without reconstructing hit attributes.
+ray_mesh_any :: (r: Ray, mesh: $T/interface Mesh3D, t_min: float = 0.0, t_max: float = FLOAT32_INFINITY) -> bool {
+    view: Mesh3D = .{vertices = mesh.vertices, indices = mesh.indices};
+    for triangle: 0..get_mesh_triangle_count(view) - 1 {
+        points := get_mesh_triangle_points(view, triangle);
+        if ray_triangle_any(r, points[0], points[1], points[2], t_min, t_max) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Weights x/y/z correspond to v0/v1/v2, in the same vertex order as ray_triangle.
 // Use Vec2 for UVs, Vec3 for positions/RGB and Vec4 (Linear_Color) for linear RGBA.
 // Decode packed colors or sRGB before interpolation. No clamping or perspective correction is applied.
