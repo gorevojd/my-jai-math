@@ -149,6 +149,14 @@ lerp_poses_internal :: (pose: *Pose, other: Pose, t: float) #no_abc {
     Basic.assert(pose.num_bones == other.num_bones && pose.num_bones <= MAX_BONE_COUNT);
     Basic.assert(is_finite(t));
 
+    if t == 0.0 {
+        return;
+    }
+    if t == 1.0 {
+        move_poses(pose, other);
+        return;
+    }
+
     for i: 0..cast(int)pose.num_bones - 1 {
         a := *pose.bone_transforms[i];
         b := other.bone_transforms[i];
@@ -172,6 +180,19 @@ lerp_barycentric_poses_internal :: (p0: *Pose, p1: Pose, p2: Pose, t0: float, t1
     largest := Basic.max(t0, Basic.max(t1, t2));
     Basic.assert(largest > 0.0);
 
+    // Triangle vertices select an exact pose without quaternion normalization.
+    if t1 == 0.0 && t2 == 0.0 {
+        return;
+    }
+    if t0 == 0.0 && t2 == 0.0 {
+        move_poses(p0, p1);
+        return;
+    }
+    if t0 == 0.0 && t1 == 0.0 {
+        move_poses(p0, p2);
+        return;
+    }
+
     w0 := t0 / largest;
     w1 := t1 / largest;
     w2 := t2 / largest;
@@ -179,6 +200,21 @@ lerp_barycentric_poses_internal :: (p0: *Pose, p1: Pose, p2: Pose, t0: float, t1
     w0 /= total;
     w1 /= total;
     w2 /= total;
+
+    // On an edge, use the same SLERP as ordinary two-pose interpolation.
+    if t0 == 0.0 {
+        move_poses(p0, p1);
+        lerp_poses_internal(p0, p2, w2);
+        return;
+    }
+    if t1 == 0.0 {
+        lerp_poses_internal(p0, p2, w2);
+        return;
+    }
+    if t2 == 0.0 {
+        lerp_poses_internal(p0, p1, w1);
+        return;
+    }
 
     for i: 0..cast(int)p0.num_bones - 1 {
         a := *p0.bone_transforms[i];

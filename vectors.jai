@@ -215,6 +215,58 @@ reject_unit :: (a: Vec3, b: Vec3) -> Vec3 {
     return a - dot(a, b) * b;
 }
 
+// Weights correspond to p0, p1, p2: point = u*p0 + v*p1 + w*p2, u+v+w = 1.
+// Signed weights are not clamped; points outside the triangle may have negative weights.
+// Triangles must be nondegenerate. The 3D overload orthogonally projects onto the plane.
+barycentric_coordinates :: (p0: Vec2, p1: Vec2, p2: Vec2, test_point: Vec2) -> (float, float, float) {
+    edge1 := p1 - p0;
+    edge2 := p2 - p0;
+    offset := test_point - p0;
+    determinant := cross(edge1, edge2);
+
+    Basic.assert(is_finite(determinant) && determinant != 0.0, "Degenerate barycentric triangle!");
+
+    v := cross(offset, edge2) / determinant;
+    w := cross(edge1, offset) / determinant;
+    return 1.0 - v - w, v, w;
+}
+
+barycentric_coordinates :: (p0: Vec3, p1: Vec3, p2: Vec3, test_point: Vec3) -> (float, float, float) {
+    normal := cross(p1 - p0, p2 - p0);
+    normal_length_squared := length_squared(normal);
+
+    Basic.assert(is_finite(normal_length_squared) && normal_length_squared > 0.0, "Degenerate barycentric triangle!");
+
+    projected := p0 + reject(test_point - p0, normal);
+    u, v, w := barycentric_coordinates_unsafe(p0, p1, p2, projected);
+    return u, v, w;
+}
+
+// test_point must already lie on the triangle plane; no orthogonal projection is performed.
+barycentric_coordinates_unsafe :: (p0: Vec3, p1: Vec3, p2: Vec3, test_point: Vec3) -> (float, float, float) {
+    normal := cross(p1 - p0, p2 - p0);
+
+    // Drop the dominant normal axis to obtain the largest projected triangle area.
+    if abs(normal.x) >= abs(normal.y) && abs(normal.x) >= abs(normal.z) {
+        u, v, w := barycentric_coordinates(Vec2.{p0.y, p0.z},
+                                          Vec2.{p1.y, p1.z},
+                                          Vec2.{p2.y, p2.z},
+                                          Vec2.{test_point.y, test_point.z});
+        return u, v, w;
+    }
+
+    if abs(normal.y) >= abs(normal.z) {
+        u, v, w := barycentric_coordinates(Vec2.{p0.x, p0.z},
+                                          Vec2.{p1.x, p1.z},
+                                          Vec2.{p2.x, p2.z},
+                                          Vec2.{test_point.x, test_point.z});
+        return u, v, w;
+    }
+
+    u, v, w := barycentric_coordinates(p0.xy, p1.xy, p2.xy, test_point.xy);
+    return u, v, w;
+}
+
 // Scale inverse
 scale_inverse_safe :: inline (scale: float) -> float {
     return ifx abs(scale) > 0.0 then 1.0 / scale else 0.0;
