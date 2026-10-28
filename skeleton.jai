@@ -1,7 +1,22 @@
+// Skin weight validation is the responsibility of mesh/skeleton loaders, before runtime use:
+// 1) All four weights of every vertex must be finite (no NaN or infinity).
+// 2) Every weight must be nonnegative.
+// 3) For a vertex with any nonzero weight, abs(sum(weights) - 1.0) must be <= 0.0001.
+//    Four zero weights are allowed: skinning preserves that vertex's source position.
+// apply_pose_to_mesh assumes these conditions and does not validate or normalize weights.
+
 HashTable :: #import "Hash_Table";
 
 INVALID_BONE_INDEX :: 255;
 MAX_BONE_COUNT :: 128;
+VertexBoneIndices :: [4]u8;
+
+AnimatedGeometryInterface :: struct {
+    vertices: [..]Vec3;
+    indices: [..]u32;
+    bones: [..]VertexBoneIndices;
+    weights: [..]Vec4;
+}
 
 Bone :: struct {
     local: Transform;
@@ -27,6 +42,8 @@ Pose :: struct {
 }
 
 Skeleton :: struct {
+    // Loaders must store parents before children and remap all bone references accordingly.
+    // Each parent_index is INVALID_BONE_INDEX or strictly less than the child's index.
     bones: [MAX_BONE_COUNT] Bone;
     sockets: [MAX_BONE_COUNT] Socket;
 
@@ -195,4 +212,48 @@ lerp_barycentric_poses_internal :: (p0: *Pose, p1: Pose, p2: Pose, t0: float, t1
 move_poses :: (dst: *Pose, src: Pose) #no_abc {
     Basic.assert(src.num_bones <= MAX_BONE_COUNT);
     dst.* = src;
+}
+
+apply_pose_to_mesh :: (dst: *$T/interface AnimatedGeometryInterface, src: T, skeleton: Skeleton, pose: Pose) {
+    Basic.assert(pose.num_bones == skeleton.num_bones && skeleton.num_bones <= MAX_BONE_COUNT);
+    Basic.assert(dst.vertices.count == src.vertices.count);
+    Basic.assert(src.bones.count == src.vertices.count && src.weights.count == src.vertices.count);
+
+    global_transforms: [MAX_BONE_COUNT] Transform;
+    skin_transforms: [MAX_BONE_COUNT] Transform;
+
+    // Parent-before-child storage makes a single forward pass sufficient.
+    for i: 0..cast(int)skeleton.num_bones - 1 {
+        parent_index := skeleton.bones[i].parent_index;
+        global := pose.bone_transforms[i];
+        if parent_index != INVALID_BONE_INDEX {
+            Basic.assert(parent_index < i, "Parent bone % must precede child bone %!", parent_index, i);
+            global = multiply(global_transforms[parent_index], global);
+        }
+        global_transforms[i] = global;
+        skin_transforms[i] = multiply(global, skeleton.bones[i].inverse_bind);
+    }
+
+    for source_position, i: src.vertices {
+        weights := src.weights[i];
+        position: Vec3;
+        total_weight := 0.0;
+        for influence: 0..3 {
+            weight := weights.e[influence];
+            if weight == 0.0 {
+                continue;
+            }
+            bone_index := src.bones[i][influence];
+            Basic.assert(bone_index < skeleton.num_bones, "Invalid skin bone index % at vertex %!", bone_index, i);
+            position += transform_point(skin_transforms[bone_index], source_position) * weight;
+            total_weight += weight;
+        }
+
+        if total_weight == 0.0 {
+            dst.vertices[i] = source_position;
+        }
+        else {
+            dst.vertices[i] = position;
+        }
+    }
 }
