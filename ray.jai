@@ -1,8 +1,5 @@
 #scope_export
 
-// p(t) = origin + direction * t. Direction is unit length, so t measures distance in this ray's coordinate space.
-// Use make_ray to normalize a nonzero direction once. Direct initialization/field writes must preserve unit length.
-// Queries assume finite geometry and 0.0 <= t_min <= t_max; t_max may be positive infinity.
 Ray :: struct {
     origin: Vec3;
     direction: Vec3 = .{0.0, 0.0, 1.0};
@@ -25,8 +22,6 @@ get_distance_of_point_to_ray_squared :: inline (r: Ray, p: Vec3) -> float {
     return distance_squared(p, get_closest_point_on_ray_to_point(r, p));
 }
 
-// Nonzero uniform scale and a unit rotation are required. Negative scale also reverses the direction.
-// result_distance = input_distance * distance_scale. Convert query intervals as well as hit distances.
 transform_ray :: inline (t: Transform, r: Ray) -> (result: Ray, distance_scale: float) {
     transformed := make_ray(transform_point(t, r.origin), transform_direction(t, r.direction) * sign(t.scale));
     return transformed, abs(t.scale);
@@ -40,10 +35,7 @@ untransform_ray :: inline (t: Transform, r: Ray) -> (result: Ray, distance_scale
 
 RayIntersectionResult :: struct {
     p: Vec3;
-    // Distance in the input ray's coordinate space.
     t: float;
-    // Triangle-only weights for p0, p1, p2: p = p0*x + p1*y + p2*z. Zero for other surfaces.
-    // These are not texture UVs. Interpolate vertex UVs/normals/colors using these same three weights.
     barycentric: Vec3;
 }
 
@@ -103,56 +95,68 @@ ray_plane :: (r: Ray, plane: Plane, t_min: float = 0.0, t_max: float = FLOAT32_I
     return found, intersection;
 }
 
-// Intersect the solid box and clip its overlap to [t_min, t_max]. Touching counts as overlap.
-// A query starting inside returns t_min as t_enter; a miss returns false, 0.0, 0.0.
+// Nearest surface hit in [t_min, t_max]. If the entry is before t_min, try the exit surface.
+// A range entirely in the interior misses; a ray along a face hits at the first overlap in the range.
 ray_aabb :: (r: Ray,
              box: Rect3D,
              t_min: float = 0.0,
-             t_max: float = FLOAT32_INFINITY) -> (hit: bool, t_enter: float, t_exit: float)
+             t_max: float = FLOAT32_INFINITY) -> (hit: bool, result: RayIntersectionResult)
 {
-    minimum := rect_min(box);
-    maximum := rect_max(box);
-
-    enter := t_min;
-    exit := t_max;
-    for axis: 0..2 {
-        origin := r.origin.e[axis];
-        direction := r.direction.e[axis];
-        if direction == 0.0 {
-            if origin < minimum.e[axis] || origin > maximum.e[axis] {
-                return false, 0.0, 0.0;
-            }
-            continue;
-        }
-
-        near := (minimum.e[axis] - origin) / direction;
-        far := (maximum.e[axis] - origin) / direction;
-        if near > far {
-            temporary := near;
-            near = far;
-            far = temporary;
-        }
-
-        enter = Basic.max(enter, near);
-        exit = Basic.min(exit, far);
-        if enter > exit {
-            return false, 0.0, 0.0;
-        }
+    found, enter, exit, along_surface := ray_aabb_internal(r, box, -FLOAT32_INFINITY, FLOAT32_INFINITY);
+    if !found || exit < t_min || enter > t_max {
+        return false, .{};
     }
 
-    return true, enter, exit;
+    distance := enter;
+    if along_surface {
+        distance = Basic.max(enter, t_min);
+    }
+    else if distance < t_min {
+        distance = exit;
+    }
+
+    surface_hit, intersection := make_ray_hit(r, distance, t_min, t_max);
+    return surface_hit, intersection;
 }
 
-// box is in local space; transform places it in the input ray's space. Returns the same clipped overlap as ray_aabb.
-// Returned distances are in the input ray's space, including for negative/non-unit transform scale.
+// Surface version of ray_aabb for a local-space box placed by transform.
+// Both the returned point and distance are in the input ray's space, including for negative/non-unit scale.
 ray_obb :: (r: Ray,
             box: Rect3D,
             transform: Transform,
             t_min: float = 0.0,
-            t_max: float = FLOAT32_INFINITY) -> (hit: bool, t_enter: float, t_exit: float)
+            t_max: float = FLOAT32_INFINITY) -> (hit: bool, result: RayIntersectionResult)
 {
     local_ray, distance_scale := untransform_ray(transform, r);
-    found, enter, exit := ray_aabb(local_ray, box, t_min * distance_scale, t_max * distance_scale);
+    found, intersection := ray_aabb(local_ray, box, t_min * distance_scale, t_max * distance_scale);
+    if !found {
+        return false, .{};
+    }
+    distance := intersection.t / distance_scale;
+    return true, .{p = ray_point(r, distance), t = distance};
+}
+
+// Intersect the solid box and clip its overlap to [t_min, t_max]. Touching counts as overlap.
+// A query starting inside returns t_min as t_enter; a miss returns false, 0.0, 0.0.
+ray_aabb_interval :: (r: Ray,
+                      box: Rect3D,
+                      t_min: float = 0.0,
+                      t_max: float = FLOAT32_INFINITY) -> (hit: bool, t_enter: float, t_exit: float)
+{
+    found, enter, exit, _ := ray_aabb_internal(r, box, t_min, t_max);
+    return found, enter, exit;
+}
+
+// box is in local space; transform places it in the input ray's space. Same clipped overlap as ray_aabb_interval.
+// Returned distances are in the input ray's space, including for negative/non-unit transform scale.
+ray_obb_interval :: (r: Ray,
+                     box: Rect3D,
+                     transform: Transform,
+                     t_min: float = 0.0,
+                     t_max: float = FLOAT32_INFINITY) -> (hit: bool, t_enter: float, t_exit: float)
+{
+    local_ray, distance_scale := untransform_ray(transform, r);
+    found, enter, exit := ray_aabb_interval(local_ray, box, t_min * distance_scale, t_max * distance_scale);
     if !found {
         return false, 0.0, 0.0;
     }
@@ -301,6 +305,48 @@ barycentric_interpolate_tangent :: inline (t0: Vec4, t1: Vec4, t2: Vec4, barycen
 }
 
 #scope_module
+
+ray_aabb_internal :: (r: Ray,
+                      box: Rect3D,
+                      t_min: float,
+                      t_max: float) -> (hit: bool, t_enter: float, t_exit: float, along_surface: bool)
+{
+    minimum := rect_min(box);
+    maximum := rect_max(box);
+    enter := t_min;
+    exit := t_max;
+    parallel_surface := false;
+    for axis: 0..2 {
+        origin := r.origin.e[axis];
+        direction := r.direction.e[axis];
+
+        if direction == 0.0 {
+            if origin < minimum.e[axis] || origin > maximum.e[axis] {
+                return false, 0.0, 0.0, false;
+            }
+
+            if origin == minimum.e[axis] || origin == maximum.e[axis] {
+                parallel_surface = true;
+            }
+
+            continue;
+        }
+
+        near := (minimum.e[axis] - origin) / direction;
+        far := (maximum.e[axis] - origin) / direction;
+        if near > far {
+            Basic.swap(*near, *far);
+        }
+
+        enter = Basic.max(enter, near);
+        exit = Basic.min(exit, far);
+        if enter > exit {
+            return false, 0.0, 0.0, false;
+        }
+    }
+
+    return true, enter, exit, parallel_surface;
+}
 
 ray_triangle_internal :: (r: Ray,
                           p0: Vec3,
