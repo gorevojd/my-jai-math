@@ -64,6 +64,19 @@ untransform_scalar :: inline (t: $T/TransformTypes, s: float) -> float {
     return s * scale_inverse_safe(t.scale);
 }
 
+to_matrix :: (t: Transform) -> Mat4 {
+    result := to_matrix(t.rotation);
+    for row: 0..2 {
+        for column: 0..2 {
+            result.rows[row].e[column] *= t.scale;
+        }
+    }
+    result._03 = t.position.x;
+    result._13 = t.position.y;
+    result._23 = t.position.z;
+    return result;
+}
+
 multiply :: inline (a: $T/TransformTypes, b: T) -> T {
     t: T = ---;
 

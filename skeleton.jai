@@ -214,15 +214,13 @@ move_poses :: (dst: *Pose, src: Pose) #no_abc {
     dst.* = src;
 }
 
-apply_pose_to_mesh :: (dst: *$T/interface AnimatedGeometryInterface, src: T, skeleton: Skeleton, pose: Pose) {
+// Shared CPU/GPU skinning transforms, indexed directly by skeleton bone index.
+build_skin_transforms :: (skeleton: Skeleton, pose: Pose, transforms: []Transform) {
     Basic.assert(pose.num_bones == skeleton.num_bones && skeleton.num_bones <= MAX_BONE_COUNT);
-    Basic.assert(dst.vertices.count == src.vertices.count);
-    Basic.assert(src.bones.count == src.vertices.count && src.weights.count == src.vertices.count);
+    Basic.assert(transforms.count == skeleton.num_bones);
 
     global_transforms: [MAX_BONE_COUNT] Transform;
-    skin_transforms: [MAX_BONE_COUNT] Transform;
 
-    // Parent-before-child storage makes a single forward pass sufficient.
     for i: 0..cast(int)skeleton.num_bones - 1 {
         parent_index := skeleton.bones[i].parent_index;
         global := pose.bone_transforms[i];
@@ -230,9 +228,24 @@ apply_pose_to_mesh :: (dst: *$T/interface AnimatedGeometryInterface, src: T, ske
             Basic.assert(parent_index < i, "Parent bone % must precede child bone %!", parent_index, i);
             global = multiply(global_transforms[parent_index], global);
         }
+
+        // Prevent quaternion length drift across deep parent chains.
+        global.rotation = normalize_safe(global.rotation);
         global_transforms[i] = global;
-        skin_transforms[i] = multiply(global, skeleton.bones[i].inverse_bind);
+        skin := multiply(global, skeleton.bones[i].inverse_bind);
+        skin.rotation = normalize_safe(skin.rotation);
+        transforms[i] = skin;
     }
+}
+
+apply_pose_to_mesh :: (dst: *$T/interface AnimatedGeometryInterface, src: T, skeleton: Skeleton, pose: Pose) {
+    Basic.assert(pose.num_bones == skeleton.num_bones && skeleton.num_bones <= MAX_BONE_COUNT);
+    Basic.assert(dst.vertices.count == src.vertices.count);
+    Basic.assert(src.bones.count == src.vertices.count && src.weights.count == src.vertices.count);
+
+    skin_transforms: [MAX_BONE_COUNT] Transform;
+    transforms: []Transform = .{skeleton.num_bones, skin_transforms.data};
+    build_skin_transforms(skeleton, pose, transforms);
 
     for source_position, i: src.vertices {
         weights := src.weights[i];
