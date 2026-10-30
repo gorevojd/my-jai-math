@@ -4,6 +4,7 @@
 #load "colors.jai";
 #load "matrix.jai";
 #load "complex.jai";
+#load "fourier.jai";
 #load "transform.jai";
 #load "rectangle.jai";
 #load "segments.jai";
