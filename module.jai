@@ -218,3 +218,4 @@ clamp01 :: inline (a: float64) -> float64   { return Basic.clamp(a, 0, 1); }
 
 #scope_module
 Basic :: #import "Basic";
+Random :: #import "Random";

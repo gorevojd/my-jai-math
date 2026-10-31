@@ -21,7 +21,7 @@ gaussian_kernel_1d :: (radius: u32, sigma: float) -> [..] float {
 
     if sigma <= 0.0 {
         Basic.assert(false, "Sigma is not valid: %!", sigma);
-        sigma = max(DEFAULT_EPSILON, sigma);
+        sigma = Basic.max(DEFAULT_EPSILON, sigma);
     }
 
     center := cast(s64) radius;
@@ -32,7 +32,7 @@ gaussian_kernel_1d :: (radius: u32, sigma: float) -> [..] float {
         return weights;
     }
 
-    array_resize(*weights, count, false);
+    Basic.array_resize(*weights, count, false);
     total: float = 0.0;
     for *weight, index: weights {
         offset := cast(float) (index - center) / sigma;
@@ -94,8 +94,8 @@ gaussian_kernel_2d :: (radius: u32, sigma_x: float, sigma_y: float) -> [..] floa
 
     if (sigma_x <= 0.0 || sigma_y <= 0.0) {
         Basic.assert(false, "Sigma values are not valid: x=%, y=%!", sigma_x, sigma_y);
-        sigma_x = max(DEFAULT_EPSILON, sigma_x);
-        sigma_y = max(DEFAULT_EPSILON, sigma_y);
+        sigma_x = Basic.max(DEFAULT_EPSILON, sigma_x);
+        sigma_y = Basic.max(DEFAULT_EPSILON, sigma_y);
     }
 
     center := cast(s64) radius;
@@ -106,7 +106,7 @@ gaussian_kernel_2d :: (radius: u32, sigma_x: float, sigma_y: float) -> [..] floa
         return weights;
     }
 
-    array_resize(*weights, side * side, false);
+    Basic.array_resize(*weights, side * side, false);
     total: float = 0.0;
     for *weight, index: weights {
         x := cast(float) (index % side - center) / sigma_x;
