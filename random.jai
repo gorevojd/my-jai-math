@@ -33,9 +33,9 @@ random_points_on_circle :: (dst: [] Vec2, radius: float) {
     assert(is_finite(radius) && radius >= 0.0, "Radius must be finite and nonnegative.");
 
     for *point: dst {
-        angle := TAU64 * cast(float64) random_get_zero_to_one_open();
-        point.x = radius * cast(float) cos(angle);
-        point.y = radius * cast(float) sin(angle);
+        angle := TAU * random_get_zero_to_one_open();
+        point.x = radius * cos(angle);
+        point.y = radius * sin(angle);
     }
 }
 
@@ -92,7 +92,7 @@ random_points_on_sphere :: (dst: [] Vec3, radius: float) {
 
     for *point: dst {
         height := 1.0 - 2.0 * random_get_zero_to_one_open();
-        angle := TAU64 * cast(float64) random_get_zero_to_one_open();
+        angle := TAU * random_get_zero_to_one_open();
         point.* = surface_sample(height, angle) * radius;
     }
 }
@@ -119,7 +119,7 @@ random_points_on_hemisphere :: (dst: [] Vec3, radius: float, normal: Vec3) {
     axis, tangent, bitangent := hemisphere_basis(normal);
     for *point: dst {
         height := random_get_zero_to_one_open();
-        angle := TAU64 * cast(float64) random_get_zero_to_one_open();
+        angle := TAU * random_get_zero_to_one_open();
         local := surface_sample(height, angle);
         point.* = (tangent * local.x + axis * local.y + bitangent * local.z) * radius;
     }
@@ -142,9 +142,9 @@ golden_points_on_sphere :: (dst: [] Vec3, radius: float) {
         return;
     }
 
-    angle: float64 = 0.0;
+    angle: float = 0.0;
     for *point, index: dst {
-        height := cast(float) (1.0 - 2.0 * (cast(float64) index + 0.5) / cast(float64) dst.count);
+        height := 1.0 - 2.0 * (cast(float) index + 0.5) / cast(float) dst.count;
         point.* = surface_sample(height, angle) * radius;
         angle = next_golden_angle(angle);
     }
@@ -165,14 +165,14 @@ golden_points_on_sphere :: (dst: [] Vec3, radius: float) {
 golden_points_on_hemisphere :: (dst: [] Vec3, radius: float, normal: Vec3) {
     assert(is_finite(radius) && radius >= 0.0, "Radius must be finite and nonnegative.");
 
-    if dst.count == 0 {
+    if dst.count == 0{
         return;
     }
 
     axis, tangent, bitangent := hemisphere_basis(normal);
-    angle: float64 = 0.0;
+    angle: float = 0.0;
     for *point, index: dst {
-        height := cast(float) ((cast(float64) index + 0.5) / cast(float64) dst.count);
+        height := (cast(float) index + 0.5) / cast(float) dst.count;
         local := surface_sample(height, angle);
         point.* = (tangent * local.x + axis * local.y + bitangent * local.z) * radius;
         angle = next_golden_angle(angle);
@@ -189,22 +189,22 @@ golden_points_on_hemisphere :: (dst: [] Vec3, radius: float, normal: Vec3) {
  * @param[in] angle Azimuth in radians in the XZ plane.
  * @return Unit-length position within floating-point rounding error.
  */
-surface_sample :: (height: float, angle: float64) -> Vec3 {
+surface_sample :: (height: float, angle: float) -> Vec3 {
     ring_radius := sqrt(max(0.0, 1.0 - height * height));
-    return .{ring_radius * cast(float) cos(angle), height, ring_radius * cast(float) sin(angle)};
+    return .{ring_radius * cos(angle), height, ring_radius * sin(angle)};
 }
 
 /**
  * @brief Advance an azimuth by the golden angle without accumulating large angles.
- * @param[in] angle Current azimuth in [0, TAU64).
- * @return Next azimuth wrapped to [0, TAU64).
+ * @param[in] angle Current azimuth in [0, TAU).
+ * @return Next azimuth wrapped to [0, TAU).
  */
-next_golden_angle :: (angle: float64) -> float64 {
+next_golden_angle :: (angle: float) -> float {
     // 2*pi / phi^2 = pi * (3 - sqrt(5)). Bound angles to preserve precision for large buffers.
-    GOLDEN_ANGLE :: #run PI64 * (3.0 - sqrt(cast(float64) 5.0));
+    GOLDEN_ANGLE :: #run PI * (3.0 - sqrt(cast(float) 5.0));
     result := angle + GOLDEN_ANGLE;
-    if result >= TAU64 {
-        result -= TAU64;
+    if result >= TAU {
+        result -= TAU;
     }
     return result;
 }
@@ -221,10 +221,16 @@ next_golden_angle :: (angle: float64) -> float64 {
 hemisphere_basis :: (normal: Vec3) -> (Vec3, Vec3, Vec3) {
     assert(valid_vector(normal), "Hemisphere normal must be finite.");
 
+    axis: Vec3 = .{};
     scale := max(abs(normal.x), max(abs(normal.y), abs(normal.z)));
-    assert(scale > 0.0, "Hemisphere normal must be nonzero.");
+    if scale > 0.0 {
+        axis := normalize(normal / scale);
+    }
+    else {
+        assert(false, "Hemisphere normal must be nonzero. Fallback to UP");
+        axis = .{0, 1, 0};
+    }
 
-    axis := normalize(normal / scale);
     reference: Vec3 = .{0.0, 1.0, 0.0};
     if abs(axis.y) > 0.9 {
         reference = .{1.0, 0.0, 0.0};
@@ -233,5 +239,3 @@ hemisphere_basis :: (normal: Vec3) -> (Vec3, Vec3, Vec3) {
     tangent := normalize(cross(reference, axis));
     return axis, tangent, cross(axis, tangent);
 }
-
-
