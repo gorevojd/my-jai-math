@@ -3,6 +3,7 @@
 #load "mesh.jai";
 #load "colors.jai";
 #load "matrix.jai";
+#load "projection.jai";
 #load "complex.jai";
 #load "fourier.jai";
 #load "transform.jai";
