@@ -27,6 +27,17 @@ FrustumPlanes :: struct {
     near, far: Plane;
 }
 
+is_volume_in_frustum :: (planes: FrustumPlanes, point: Vec3, radius: float) -> bool {
+    Basic.assert(is_finite(radius) && radius >= 0.0, "is_volume_in_frustum requires a finite nonnegative sphere radius.");
+    
+    return (plane_dot(planes.left, point) >= -radius &&
+            plane_dot(planes.right, point) >= -radius &&
+            plane_dot(planes.bottom, point) >= -radius &&
+            plane_dot(planes.top, point) >= -radius &&
+            plane_dot(planes.near, point) >= -radius &&
+            plane_dot(planes.far, point) >= -radius);
+}
+
 /**
  * @brief Extracts six frustum planes with unit normals pointing inward.
  * @param[in] matrix Transform from the desired plane coordinate space to homogeneous clip space.
@@ -47,7 +58,7 @@ extract_frustum_planes :: (matrix: Mat4,
                           depth_direction: ProjectionDepthDirection = .Normal) -> FrustumPlanes
 {
     result: FrustumPlanes;
-    
+
     result.left = normalized_frustum_plane(matrix.rows[3] + matrix.rows[0]);
     result.right = normalized_frustum_plane(matrix.rows[3] - matrix.rows[0]);
     lower_y := normalized_frustum_plane(matrix.rows[3] + matrix.rows[1]);
