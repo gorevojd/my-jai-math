@@ -155,7 +155,7 @@ decompose_into_components :: (matrix: Mat4) -> (position: Vec3, rotation: Quat, 
             axes[1] = decompose_perpendicular(axes[0]);
         }
     }
-    
+
     if scale.z == 0.0 {
         axes[2] = normalize(cross(axes[0], axes[1]));
     }
@@ -164,13 +164,6 @@ decompose_into_components :: (matrix: Mat4) -> (position: Vec3, rotation: Quat, 
     return position, rotation, scale;
 }
 
-/**
- * @brief Decomposes a uniformly scaled affine TRS matrix into a Transform.
- * @param[in] matrix Matrix satisfying the requirements of decompose_into_components.
- * @return Transform with a signed uniform scale and unit rotation.
- * @pre All three column lengths are equal within relative floating-point tolerance.
- * @see decompose_into_components
- */
 decompose_into_transform :: (matrix: Mat4) -> Transform {
     position, rotation, scale := decompose_into_components(matrix);
     Basic.assert(decompose_scale_is_uniform(scale),

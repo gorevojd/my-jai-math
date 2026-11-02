@@ -5,14 +5,6 @@ EulerAngles :: struct {
     #overlay (pitch) using xyz: Vec3;
 }
 
-/**
- * @brief Converts Euler angles in radians to a unit quaternion.
- * @param[in] angles Finite X pitch, Y yaw and Z roll angles.
- * @return Rotation composed as Ry(yaw) * Rx(pitch) * Rz(roll), acting on column vectors.
- * @details
- * - Positive angles follow the corresponding MyMath rotation matrices.
- * - With fixed axes, roll acts first, then pitch, then yaw.
- */
 euler_to_quat :: (angles: EulerAngles) -> Quat {
     Basic.assert(is_finite(angles.pitch) &&
                  is_finite(angles.yaw) &&
@@ -32,17 +24,6 @@ euler_to_quat :: (angles: EulerAngles) -> Quat {
     return normalize(result);
 }
 
-/**
- * @brief Extracts Euler angles in radians using Ry(yaw) * Rx(pitch) * Rz(roll).
- * @param[in] rotation Finite unit quaternion; q and -q describe the same rotation.
- * @return Pitch in [-PI/2, PI/2], yaw and roll in [-PI, PI).
- * @pre The input quaternion is normalized.
- * @details
- * - Euler angles are not unique or continuous across their wrapping boundaries.
- * - At gimbal lock, roll is zero and yaw contains the combined Y/Z rotation.
- * - Within DEFAULT_EPSILON of either singular half-angle pair, the same convention
- *   is used; the reconstructed rotation differs only within floating-point tolerance.
- */
 quat_to_euler :: (rotation: Quat) -> EulerAngles {
     Basic.assert(values_are_close(length(rotation), 1.0), "quat_to_euler requires a finite unit quaternion.");
 
@@ -74,6 +55,7 @@ quat_to_euler :: (rotation: Quat) -> EulerAngles {
 
 get_rotation_yaw :: (rotation: Quat) -> float {
     Basic.assert(values_are_close(length(rotation), 1.0), "get_rotation_yaw requires a finite unit quaternion.");
+
     minus_y := rotation.y - rotation.z;
     minus_x := rotation.w + rotation.x;
     plus_y := rotation.y + rotation.z;
@@ -83,12 +65,14 @@ get_rotation_yaw :: (rotation: Quat) -> float {
     {
         return wrap_euler_angle(2.0 * atan2(rotation.y, rotation.w));
     }
+    
     // Add the two half-angles algebraically, requiring only one atan2.
     return wrap_euler_angle(atan2(minus_y * plus_x + plus_y * minus_x, minus_x * plus_x - minus_y * plus_y));
 }
 
 get_rotation_pitch :: (rotation: Quat) -> float {
     Basic.assert(values_are_close(length(rotation), 1.0), "get_rotation_pitch requires a finite unit quaternion.");
+
     minus_squared := square(rotation.w + rotation.x) + square(rotation.y - rotation.z);
     plus_squared := square(rotation.w - rotation.x) + square(rotation.y + rotation.z);
     return atan2(minus_squared - plus_squared, 2.0 * sqrt(minus_squared * plus_squared));
@@ -96,6 +80,7 @@ get_rotation_pitch :: (rotation: Quat) -> float {
 
 get_rotation_roll :: (rotation: Quat) -> float {
     Basic.assert(values_are_close(length(rotation), 1.0), "get_rotation_roll requires a finite unit quaternion.");
+
     minus_y := rotation.y - rotation.z;
     minus_x := rotation.w + rotation.x;
     plus_y := rotation.y + rotation.z;
@@ -105,19 +90,15 @@ get_rotation_roll :: (rotation: Quat) -> float {
     {
         return 0.0;
     }
+
     // Subtract the two half-angles algebraically, requiring only one atan2.
     return wrap_euler_angle(atan2(plus_y * minus_x - minus_y * plus_x, plus_x * minus_x + plus_y * minus_y));
 }
 
-/**
- * @brief Converts Euler angles directly to a homogeneous rotation matrix.
- * @param[in] angles Finite X pitch, Y yaw and Z roll angles in radians.
- * @return Mat4 equal to Ry(yaw) * Rx(pitch) * Rz(roll), with zero translation and unit scale.
- * @see euler_to_quat
- */
 euler_to_matrix :: (angles: EulerAngles) -> Mat4 {
     Basic.assert(is_finite(angles.pitch) && is_finite(angles.yaw) && is_finite(angles.roll),
                  "euler_to_matrix requires finite angles in radians.");
+
     sp := sin(angles.pitch);
     cp := cos(angles.pitch);
     sy := sin(angles.yaw);
@@ -139,16 +120,6 @@ euler_to_matrix :: (angles: EulerAngles) -> Mat4 {
     return result;
 }
 
-/**
- * @brief Extracts Euler angles directly from the rotation block of a Mat3 or Mat4.
- * @param[in] matrix Matrix whose upper-left 3x3 block is a finite proper orthonormal rotation.
- * @return Radians in the same ranges and Y/X/Z composition order as quat_to_euler.
- * @pre The rotation block has no scale, shear or reflection; other entries are ignored.
- * @details
- * - When abs(cos(pitch)) <= DEFAULT_EPSILON, roll is zero and yaw holds the combined rotation.
- * - Remove scale first with decompose_into_components when working with a general TRS matrix.
- * @see quat_to_euler
- */
 matrix_to_euler :: (matrix: $T/.[Mat3, Mat4]) -> EulerAngles {
     Basic.assert(is_euler_rotation_matrix(matrix), "matrix_to_euler requires a finite proper orthonormal rotation block.");
 
