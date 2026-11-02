@@ -20,22 +20,62 @@ ProjectionFlip :: enum {
     Both;
 }
 
+FrustumPlaneSide :: enum {
+    Left;
+    Right;
+    Bottom;
+    Top;
+    Near;
+    Far;
+}
+
 // Unit normals point inward; a point is inside or on the frustum when all six plane_dot values are >= 0.
-FrustumPlanes :: struct {
-    left, right: Plane;
-    bottom, top: Plane;
-    near, far: Plane;
+FrustumPlanes :: [FRUSTUM_PLANE_COUNT] Plane;
+
+is_aabb_in_frustum :: (planes: FrustumPlanes, rect: Rect3D) -> bool {
+    Basic.assert((rect.radius.x >= 0.0 &&
+                  rect.radius.y >= 0.0 &&
+                  rect.radius.z >= 0.0), "is_aabb_in_frustum requires nonnegative half dimensions.");
+
+    for plane: planes {
+        radius := dot(abs(plane.normal), rect.radius);
+        if plane_dot(plane, rect.center) < -radius {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+is_obb_in_frustum :: (planes: FrustumPlanes, rect: Rect3D, rotation: Quat) -> bool {
+    Basic.assert((rect.radius.x >= 0.0 &&
+                  rect.radius.y >= 0.0 &&
+                  rect.radius.z >= 0.0), "is_obb_in_frustum requires nonnegative half dimensions.");
+    Basic.assert(values_are_close(length(rotation), 1.0), "is_obb_in_frustum requires a finite unit quaternion.");
+
+    x := rotated_x_axis(rotation) * rect.radius.x;
+    y := rotated_y_axis(rotation) * rect.radius.y;
+    z := rotated_z_axis(rotation) * rect.radius.z;
+
+    for plane: planes {
+        radius := abs(dot(plane.normal, x)) + abs(dot(plane.normal, y)) + abs(dot(plane.normal, z));
+        if plane_dot(plane, rect.center) < -radius {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 is_volume_in_frustum :: (planes: FrustumPlanes, point: Vec3, radius: float) -> bool {
     Basic.assert(is_finite(radius) && radius >= 0.0, "is_volume_in_frustum requires a finite nonnegative sphere radius.");
-    
-    return (plane_dot(planes.left, point) >= -radius &&
-            plane_dot(planes.right, point) >= -radius &&
-            plane_dot(planes.bottom, point) >= -radius &&
-            plane_dot(planes.top, point) >= -radius &&
-            plane_dot(planes.near, point) >= -radius &&
-            plane_dot(planes.far, point) >= -radius);
+
+    for plane: planes {
+        if !(plane_dot(plane, point) >= -radius) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**
@@ -59,18 +99,18 @@ extract_frustum_planes :: (matrix: Mat4,
 {
     result: FrustumPlanes;
 
-    result.left = normalized_frustum_plane(matrix.rows[3] + matrix.rows[0]);
-    result.right = normalized_frustum_plane(matrix.rows[3] - matrix.rows[0]);
+    result[FrustumPlaneSide.Left] = normalized_frustum_plane(matrix.rows[3] + matrix.rows[0]);
+    result[FrustumPlaneSide.Right] = normalized_frustum_plane(matrix.rows[3] - matrix.rows[0]);
     lower_y := normalized_frustum_plane(matrix.rows[3] + matrix.rows[1]);
     upper_y := normalized_frustum_plane(matrix.rows[3] - matrix.rows[1]);
 
     if y_direction == .Up {
-        result.bottom = lower_y;
-        result.top = upper_y;
+        result[FrustumPlaneSide.Bottom] = lower_y;
+        result[FrustumPlaneSide.Top] = upper_y;
     }
     else {
-        result.bottom = upper_y;
-        result.top = lower_y;
+        result[FrustumPlaneSide.Bottom] = upper_y;
+        result[FrustumPlaneSide.Top] = lower_y;
     }
 
     lower_z: Plane;
@@ -83,12 +123,12 @@ extract_frustum_planes :: (matrix: Mat4,
 
     upper_z := normalized_frustum_plane(matrix.rows[3] - matrix.rows[2]);
     if depth_direction == .Normal {
-        result.near = lower_z;
-        result.far = upper_z;
+        result[FrustumPlaneSide.Near] = lower_z;
+        result[FrustumPlaneSide.Far] = upper_z;
     }
     else {
-        result.near = upper_z;
-        result.far = lower_z;
+        result[FrustumPlaneSide.Near] = upper_z;
+        result[FrustumPlaneSide.Far] = lower_z;
     }
 
     return result;
@@ -278,6 +318,8 @@ orthographic_projection_infinite :: (w: float, h: float, num_pixels_per_unit: fl
 }
 
 #scope_file
+
+FRUSTUM_PLANE_COUNT :: #run Basic.enum_highest_value(FrustumPlaneSide) + 1;
 
 normalized_frustum_plane :: (coefficients: Vec4) -> Plane {
     normal_length := length(coefficients.xyz);
