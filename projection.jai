@@ -20,6 +20,74 @@ ProjectionFlip :: enum {
     Both;
 }
 
+// Unit normals point inward; a point is inside or on the frustum when all six plane_dot values are >= 0.
+FrustumPlanes :: struct {
+    left, right: Plane;
+    bottom, top: Plane;
+    near, far: Plane;
+}
+
+/**
+ * @brief Extracts six frustum planes with unit normals pointing inward.
+ * @param[in] matrix Transform from the desired plane coordinate space to homogeneous clip space.
+ * @param[in] depth_range Clip-space depth convention used to construct the projection.
+ * @param[in] y_direction Viewport Y convention, used to label the bottom and top planes.
+ * @param[in] depth_direction Depth ordering, used to label the near and far planes.
+ * @return Six normalized planes: plane_dot(plane, point) is positive on the interior side,
+ *         zero on the plane, and negative on the exterior side. Inside/on the frustum requires all six values >= 0.
+ * @pre The matrix must define six finite, non-degenerate planes; an infinite far plane is unsupported.
+ * @details
+ * - Works with perspective and orthographic projections, including asymmetric and oblique projections.
+ * - P returns camera-space planes; P * V returns world-space planes; P * V * M returns model-space planes.
+ * - A reflected view matrix is supported. The inward-normal convention is preserved.
+ */
+extract_frustum_planes :: (matrix: Mat4,
+                          depth_range: ProjectionDepthRange,
+                          y_direction: ProjectionYDirection = .Up,
+                          depth_direction: ProjectionDepthDirection = .Normal) -> FrustumPlanes
+{
+    result: FrustumPlanes;
+    result.left = normalized_frustum_plane(matrix.rows[3] + matrix.rows[0]);
+    result.right = normalized_frustum_plane(matrix.rows[3] - matrix.rows[0]);
+    lower_y := normalized_frustum_plane(matrix.rows[3] + matrix.rows[1]);
+    upper_y := normalized_frustum_plane(matrix.rows[3] - matrix.rows[1]);
+    if y_direction == .Up {
+        result.bottom = lower_y;
+        result.top = upper_y;
+    }
+    else {
+        result.bottom = upper_y;
+        result.top = lower_y;
+    }
+    lower_z: Plane;
+    if depth_range == .NegativeOneToOne {
+        lower_z = normalized_frustum_plane(matrix.rows[3] + matrix.rows[2]);
+    }
+    else {
+        lower_z = normalized_frustum_plane(matrix.rows[2]);
+    }
+    upper_z := normalized_frustum_plane(matrix.rows[3] - matrix.rows[2]);
+    if depth_direction == .Normal {
+        result.near = lower_z;
+        result.far = upper_z;
+    }
+    else {
+        result.near = upper_z;
+        result.far = lower_z;
+    }
+    return result;
+}
+
+extract_frustum_planes_ogl :: #bake_arguments extract_frustum_planes(depth_range = ProjectionDepthRange.NegativeOneToOne,
+                                                                  y_direction = ProjectionYDirection.Up,
+                                                                  depth_direction = ProjectionDepthDirection.Normal);
+extract_frustum_planes_vk :: #bake_arguments extract_frustum_planes(depth_range = ProjectionDepthRange.ZeroToOne,
+                                                                 y_direction = ProjectionYDirection.Down,
+                                                                 depth_direction = ProjectionDepthDirection.Normal);
+extract_frustum_planes_dx :: #bake_arguments extract_frustum_planes(depth_range = ProjectionDepthRange.ZeroToOne,
+                                                                 y_direction = ProjectionYDirection.Up,
+                                                                 depth_direction = ProjectionDepthDirection.Normal);
+
 /**
  * @brief Flips a projected image horizontally, vertically, or along both axes.
  * @param[in] projection Projection matrix acting on column vectors, including any API-specific Y adjustment.
@@ -194,6 +262,14 @@ orthographic_projection_infinite :: (w: float, h: float, num_pixels_per_unit: fl
 }
 
 #scope_file
+
+normalized_frustum_plane :: (coefficients: Vec4) -> Plane {
+    normal_length := length(coefficients.xyz);
+    Basic.assert(is_finite(normal_length) &&
+                 normal_length > 0.0 &&
+                 is_finite(coefficients.w), "extract_frustum_planes requires six finite, non-degenerate planes.");
+    return make_plane(coefficients / normal_length);
+}
 
 projection_depth_endpoints :: inline (depth_range: ProjectionDepthRange, depth_direction: ProjectionDepthDirection) -> (float, float) {
     low: float = ifx depth_range == .NegativeOneToOne then -1.0 else 0.0;
