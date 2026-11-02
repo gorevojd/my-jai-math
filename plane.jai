@@ -44,7 +44,7 @@ make_plane :: (v: Vec4) -> Plane {
 plane_from_point_and_normal :: (point: Vec3, normal: Vec3) -> Plane {
     p: Plane = ---;
     p.normal = normal;
-    p.c = -dot(point, normal);
+    p.d = -dot(point, normal);
     return p;
 }
 

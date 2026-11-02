@@ -13,6 +13,46 @@ ProjectionDepthDirection :: enum {
     Reversed;
 }
 
+ProjectionFlip :: enum {
+    None;
+    Horizontal;
+    Vertical;
+    Both;
+}
+
+/**
+ * @brief Flips a projected image horizontally, vertically, or along both axes.
+ * @param[in] projection Projection matrix acting on column vectors, including any API-specific Y adjustment.
+ * @param[in] flip None preserves the image; Horizontal reverses X; Vertical reverses Y; Both reverses X and Y.
+ * @return A modified copy of projection. Clip-space Z and W, and therefore NDC depth, are unchanged.
+ * @details
+ * - Computes F * projection, where F is diag(sx, sy, 1, 1) and each selected axis has sign -1.
+ *   The operation negates complete rows, including offsets. Negating only _00 or _11 would fail
+ *   for asymmetric, fullscreen or jittered projections. Multiplying projection * F is a different operation.
+ * - Works with perspective and orthographic projections, either depth range, and normal or reversed Z.
+ *   Horizontal swaps left/right and Vertical swaps top/bottom about the viewport center.
+ *   Both is equivalent to rotating the image by 180 degrees. Applying the same flip twice restores the matrix.
+ * - Composes with the API convention already baked into projection. A second Y inversion cancels the first;
+ *   do not separately change the viewport convention to compensate for this intentional image flip.
+ * - This is an image flip, not reflection of a camera or scene about a world-space plane.
+ *   Planar reflections require a separate plane-reflection transform; there is no universally required X or Y flip.
+ * - A single-axis flip reverses projected triangle winding. Both preserves winding.
+ *   The renderer must account for the combined parity of camera/scene reflections, projection flips and viewport
+ *   orientation when choosing front-face/culling state. This function does not modify graphics API state.
+ * - Update any cached inverse projection or inverse view-projection after changing the projection.
+ * @note Example: projection = flip_projection(perspective_projection_vk(fov_y, aspect, near, far), .Vertical);
+ */
+flip_projection :: (projection: Mat4, flip: ProjectionFlip) -> Mat4 {
+    result := projection;
+    if flip == .Horizontal || flip == .Both {
+        result.rows[0] = -result.rows[0];
+    }
+    if flip == .Vertical || flip == .Both {
+        result.rows[1] = -result.rows[1];
+    }
+    return result;
+}
+
 perspective_projection :: (fov_y: float,
                           aspect: float,
                           near: float,

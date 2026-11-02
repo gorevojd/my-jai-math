@@ -590,6 +590,22 @@ reflection_mat4 :: (plane_normal: Vec3) -> Mat4 {
     return r;
 }
 
+reflection_mat4 :: (p: Plane) -> Mat4 {
+    normal, normal_length := normalize_and_get_length(p.normal);
+    offset := p.d / normal_length;
+    translation := normal * (-2.0 * offset);
+
+    result := reflection_mat4(normal);
+    result._03 = translation.x;
+    result._13 = translation.y;
+    result._23 = translation.z;
+    return result;
+}
+
+reflect_against_plane :: (m: Mat4, p: Plane) -> Mat4 {
+    return m * reflection_mat4(p);
+}
+
 // ............
 // Scale matrix
 // ............
