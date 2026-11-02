@@ -47,10 +47,12 @@ extract_frustum_planes :: (matrix: Mat4,
                           depth_direction: ProjectionDepthDirection = .Normal) -> FrustumPlanes
 {
     result: FrustumPlanes;
+    
     result.left = normalized_frustum_plane(matrix.rows[3] + matrix.rows[0]);
     result.right = normalized_frustum_plane(matrix.rows[3] - matrix.rows[0]);
     lower_y := normalized_frustum_plane(matrix.rows[3] + matrix.rows[1]);
     upper_y := normalized_frustum_plane(matrix.rows[3] - matrix.rows[1]);
+
     if y_direction == .Up {
         result.bottom = lower_y;
         result.top = upper_y;
@@ -59,6 +61,7 @@ extract_frustum_planes :: (matrix: Mat4,
         result.bottom = upper_y;
         result.top = lower_y;
     }
+
     lower_z: Plane;
     if depth_range == .NegativeOneToOne {
         lower_z = normalized_frustum_plane(matrix.rows[3] + matrix.rows[2]);
@@ -66,6 +69,7 @@ extract_frustum_planes :: (matrix: Mat4,
     else {
         lower_z = normalized_frustum_plane(matrix.rows[2]);
     }
+
     upper_z := normalized_frustum_plane(matrix.rows[3] - matrix.rows[2]);
     if depth_direction == .Normal {
         result.near = lower_z;
@@ -75,6 +79,7 @@ extract_frustum_planes :: (matrix: Mat4,
         result.near = upper_z;
         result.far = lower_z;
     }
+
     return result;
 }
 
