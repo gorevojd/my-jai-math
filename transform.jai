@@ -101,9 +101,7 @@ multiply :: inline (a: $T/TransformTypes, b: T) -> T {
  * - Perspective and shear are unsupported and checked with assertions.
  */
 decompose_into_components :: (matrix: Mat4) -> (position: Vec3, rotation: Quat, scale: Vec3) {
-    for value: matrix.e {
-        Basic.assert(is_finite(value), "decompose requires finite matrix entries.");
-    }
+    Basic.assert(decompose_matrix_is_finite(matrix), "decompose requires finite matrix entries.");
     Basic.assert(matrix._30 == 0.0 &&
                  matrix._31 == 0.0 &&
                  matrix._32 == 0.0 &&
@@ -175,8 +173,7 @@ decompose_into_components :: (matrix: Mat4) -> (position: Vec3, rotation: Quat, 
  */
 decompose_into_transform :: (matrix: Mat4) -> Transform {
     position, rotation, scale := decompose_into_components(matrix);
-    tolerance := DECOMPOSE_TOLERANCE * Basic.max(abs(scale.x), abs(scale.y), abs(scale.z));
-    Basic.assert(abs(scale.x - scale.y) <= tolerance && abs(scale.x - scale.z) <= tolerance,
+    Basic.assert(decompose_scale_is_uniform(scale),
                  "Transform requires uniform scale; use decompose_into_components.");
     result: Transform;
     result.position = position;
@@ -188,6 +185,21 @@ decompose_into_transform :: (matrix: Mat4) -> Transform {
 #scope_file
 
 DECOMPOSE_TOLERANCE :: 0.00001;
+
+decompose_matrix_is_finite :: (matrix: Mat4) -> bool {
+    for value: matrix.e {
+        if !is_finite(value) {
+            return false;
+        }
+    }
+    return true;
+}
+
+decompose_scale_is_uniform :: (scale: Vec3) -> bool {
+    tolerance := DECOMPOSE_TOLERANCE * Basic.max(abs(scale.x), abs(scale.y), abs(scale.z));
+    return (abs(scale.x - scale.y) <= tolerance &&
+            abs(scale.x - scale.z) <= tolerance);
+}
 
 decompose_perpendicular :: (axis: Vec3) -> Vec3 {
     reference: Vec3;
