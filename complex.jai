@@ -160,6 +160,83 @@ to_vector :: inline (q: Quat) -> Vec3 { return rotated_z_axis(q); }
 complex_from_angle :: (angle: float) -> Complex { return .{cos(angle), sin(angle)}; }
 complex_to_angle :: (using complex: Complex) -> float { return atan2(im, re); }
 
+/**
+ * @brief Constructs the shortest-arc rotation from one 2D direction to another.
+ * @param[in] from Source vector; normalization is not required.
+ * @param[in] to Destination vector; normalization is not required.
+ * @return Unit complex rotation, or identity if either length is at most DEFAULT_EPSILON.
+ * @pre Inputs and their squared lengths must be finite.
+ * @note Rotation preserves vector length; opposite directions produce a half-turn.
+ */
+complex_from_to :: (from: Vec2, to: Vec2) -> Complex {
+    from_squared := length_squared(from);
+    to_squared := length_squared(to);
+    if (from_squared <= DEFAULT_EPSILON_SQUARED ||
+        to_squared <= DEFAULT_EPSILON_SQUARED) {
+        return IDENTITY_COMPLEX;
+    }
+
+    a := from / sqrt(from_squared);
+    b := to / sqrt(to_squared);
+    return normalize(Complex.{dot(a, b), cross(a, b)});
+}
+
+/**
+ * @brief Constructs the shortest-arc rotation from one 3D direction to another.
+ * @param[in] from Source vector; normalization is not required.
+ * @param[in] to Destination vector; normalization is not required.
+ * @return Unit quaternion with nonnegative w, or identity if either length is at most DEFAULT_EPSILON.
+ * @pre Inputs and their squared lengths must be finite.
+ * @details
+ * - Rotation preserves vector length and introduces no additional twist.
+ * - Opposite directions have no unique shortest axis. If their normalized cross-product length
+ *   is at most DEFAULT_EPSILON, uses a half-turn about a deterministic perpendicular axis.
+ * - The half-turn axis crosses the source with its least-aligned coordinate axis (ties prefer X, then Y).
+ */
+quat_from_to :: (from: Vec3, to: Vec3) -> Quat {
+    from_squared := length_squared(from);
+    to_squared := length_squared(to);
+    if (from_squared <= DEFAULT_EPSILON_SQUARED || to_squared <= DEFAULT_EPSILON_SQUARED) return IDENTITY_QUAT;
+
+    a := from / sqrt(from_squared);
+    b := to / sqrt(to_squared);
+    cosine := dot(a, b);
+
+    result: Quat;
+    if cosine >= 0.0 {
+        result.xyz = cross(a, b);
+        result.w = 1.0 + cosine;
+    }
+    else {
+        // Adding nearly opposite directions before crossing avoids cancellation in the cross product.
+        result.xyz = cross(a, a + b);
+        sine_squared := length_squared(result.xyz);
+
+        if sine_squared <= DEFAULT_EPSILON_SQUARED {
+            reference: Vec3;
+
+            if (abs(a.x) <= abs(a.y) && abs(a.x) <= abs(a.z)) {
+                reference = .{1.0, 0.0, 0.0};
+            }
+            else if abs(a.y) <= abs(a.z) {
+                reference = .{0.0, 1.0, 0.0};
+            }
+            else {
+                reference = .{0.0, 0.0, 1.0};
+            }
+
+            result.xyz = normalize(cross(a, reference));
+            result.w = 0.0;
+            return result;
+        }
+
+        // Rationalize sqrt(cosine^2 + sine^2) + cosine near a half-turn.
+        result.w = sine_squared / (sqrt(cosine * cosine + sine_squared) - cosine);
+    }
+
+    return normalize(result);
+}
+
 // Rotation matrix with rotated basis axes in its columns. Quaternion must be normalized.
 to_matrix3 :: (q: Quat) -> Mat3 {
     Basic.assert(values_are_close(length(q), 1.0));

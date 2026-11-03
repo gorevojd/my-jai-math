@@ -484,7 +484,10 @@ rotation_z :: rotation_z_mat4;
 // Axis-Angle rotation
 // ...................
 #scope_module
+
 axis_angle_rotation_internal :: inline (m: *$T/interface AnyMat3, axis: Vec3, angle: float) {
+    Basic.assert(is_finite(length(axis)) && equal(length(axis), 1.0));
+
     c := cos(angle);
     s := sin(angle);
     d := 1.0 - c;
