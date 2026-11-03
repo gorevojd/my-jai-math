@@ -1,4 +1,4 @@
-#load "cephes.jai";
+#load "scalar_math.jai";
 #load "vectors.jai";
 #load "mesh.jai";
 #load "colors.jai";
