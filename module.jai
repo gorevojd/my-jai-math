@@ -225,6 +225,17 @@ hermite3 :: inline (t: float, h: float) -> [4]float {
     return base;
 }
 
+hermite3_derivative :: inline (t: float, h: float) -> [4]float {
+    base: [4]float;
+
+    nt := t / h;
+    base[1] = 6.0 * nt * (1.0 - nt) / h;
+    base[0] = -base[1];
+    base[2] = nt * (3.0 * nt - 4.0) + 1.0;
+    base[3] = nt * (3.0 * nt - 2.0);
+    return base;
+}
+
 clamp01 :: inline (a: float)   -> float     { return Basic.clamp(a, 0, 1); }
 clamp01 :: inline (a: float64) -> float64   { return Basic.clamp(a, 0, 1); }
 
