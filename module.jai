@@ -214,6 +214,17 @@ is_finite :: (x: float) -> bool {
 lerp :: inline (a: float, b: float, t: float) -> float { return a + (b - a) * t; }
 lerp :: inline (a: float64, b: float64, t: float64) -> float64 { return a + (b - a) * t; }
 
+hermite3 :: inline (t: float, h: float) -> [4]float {
+    base: [4]float;
+
+    nt := t / h;
+    base[1] = nt * nt * (3.0 - 2.0 * nt);
+    base[0] = 1.0 - base[1];
+    base[2] = t * (nt * (nt - 2.0) + 1.0);
+    base[3] = t * nt * (nt - 1.0);
+    return base;
+}
+
 clamp01 :: inline (a: float)   -> float     { return Basic.clamp(a, 0, 1); }
 clamp01 :: inline (a: float64) -> float64   { return Basic.clamp(a, 0, 1); }
 
