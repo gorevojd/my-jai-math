@@ -215,9 +215,24 @@ lerp :: inline (a: float, b: float, t: float) -> float { return a + (b - a) * t;
 lerp :: inline (a: float64, b: float64, t: float64) -> float64 { return a + (b - a) * t; }
 
 hermite3 :: inline (t: float, h: float) -> [4]float {
-    base: [4]float;
+    return hermite3_weights(t, t / h);
+}
 
+hermite3_derivative :: inline (t: float, h: float) -> [4]float {
+    return hermite3_derivative_weights(t / h, h);
+}
+
+hermite3_with_derivative :: inline (t: float, h: float) -> [4]float, [4]float {
     nt := t / h;
+    return hermite3_weights(t, nt), hermite3_derivative_weights(nt, h);
+}
+
+clamp01 :: inline (a: float)   -> float     { return Basic.clamp(a, 0, 1); }
+clamp01 :: inline (a: float64) -> float64   { return Basic.clamp(a, 0, 1); }
+
+#scope_module
+hermite3_weights :: inline (t: float, nt: float) -> [4]float {
+    base: [4]float;
     base[1] = nt * nt * (3.0 - 2.0 * nt);
     base[0] = 1.0 - base[1];
     base[2] = t * (nt * (nt - 2.0) + 1.0);
@@ -225,10 +240,8 @@ hermite3 :: inline (t: float, h: float) -> [4]float {
     return base;
 }
 
-hermite3_derivative :: inline (t: float, h: float) -> [4]float {
+hermite3_derivative_weights :: inline (nt: float, h: float) -> [4]float {
     base: [4]float;
-
-    nt := t / h;
     base[1] = 6.0 * nt * (1.0 - nt) / h;
     base[0] = -base[1];
     base[2] = nt * (3.0 * nt - 4.0) + 1.0;
@@ -236,9 +249,5 @@ hermite3_derivative :: inline (t: float, h: float) -> [4]float {
     return base;
 }
 
-clamp01 :: inline (a: float)   -> float     { return Basic.clamp(a, 0, 1); }
-clamp01 :: inline (a: float64) -> float64   { return Basic.clamp(a, 0, 1); }
-
-#scope_module
 Basic :: #import "Basic";
 Random :: #import "Random";

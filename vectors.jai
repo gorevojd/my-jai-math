@@ -181,21 +181,22 @@ cross :: inline (a: Vec3, b: Vec3) -> Vec3 {
     return r;
 }
 
-// Angles (radians). a and b must be nonzero; unsafe variants require unit vectors.
-unsigned_angle :: inline (a: Vec3, b: Vec3) -> float {
-    return unsigned_angle_unsafe(normalize(a), normalize(b));
+// Angles (radians). a and b must be nonzero; normalization is not required.
+unsigned_angle :: inline (a: Vec2, b: Vec2) -> float {
+    return atan2(abs(cross(a, b)), dot(a, b));
 }
 
-unsigned_angle_unsafe :: inline (a: Vec3, b: Vec3) -> float {
-    return acos(Basic.clamp(dot(a, b), -1.0, 1.0));
+signed_angle :: inline (a: Vec2, b: Vec2) -> float {
+    return atan2(cross(a, b), dot(a, b));
+}
+
+unsigned_angle :: inline (a: Vec3, b: Vec3) -> float {
+    return atan2(length(cross(a, b)), dot(a, b));
 }
 
 signed_angle :: inline (a: Vec3, b: Vec3, up: Vec3) -> float {
-    return signed_angle_unsafe(normalize(a), normalize(b), up);
-}
-
-signed_angle_unsafe :: inline (a: Vec3, b: Vec3, up: Vec3) -> float {
-    return unsigned_angle_unsafe(a, b) * sign(dot(up, cross(a, b)));
+    cross_ab := cross(a, b);
+    return atan2(length(cross_ab), dot(a, b)) * sign(dot(up, cross_ab));
 }
 
 // Project & Reject
