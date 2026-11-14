@@ -199,6 +199,12 @@ signed_angle :: inline (a: Vec3, b: Vec3, up: Vec3) -> float {
     return atan2(length(cross_ab), dot(a, b)) * sign(dot(up, cross_ab));
 }
 
+// Angles (degrees).
+unsigned_angle_deg :: inline (a: Vec2, b: Vec2) -> float { return rad_to_deg(unsigned_angle(a, b)); }
+signed_angle_deg :: inline (a: Vec2, b: Vec2) -> float { return rad_to_deg(signed_angle(a, b)); }
+unsigned_angle_deg :: inline (a: Vec3, b: Vec3) -> float { return rad_to_deg(unsigned_angle(a, b)); }
+signed_angle_deg :: inline (a: Vec3, b: Vec3, up: Vec3) -> float { return rad_to_deg(signed_angle(a, b, up)); }
+
 // Project & Reject
 project :: (a: Vec3, b: Vec3) -> Vec3 {
     return (dot(a, b) / dot(b, b)) * b;
