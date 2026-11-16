@@ -17,7 +17,8 @@ Fourier_Direction :: enum {
  *   positive sign and divides by N, restoring input up to numerical error.
  * - Output uses natural bin order: DC first, then positive and negative frequencies.
  *   No windowing or fftshift is applied.
- * - Complex components are float32; each bin is accumulated in float64.
+ * - Complex components are float32; phase angles and bin accumulation use float64
+ *   to limit cancellation and round-trip error in the direct transform.
  * - No memory allocations occur; input is unchanged.
  *
  * @pre Samples must be finite and within the numerical range of the transform.
@@ -38,18 +39,18 @@ dft :: (input: []Complex, output: []Complex, direction: Fourier_Direction = .For
     scale: float64 = 1.0;
     if direction == .Inverse {
         sign = 1.0;
-        scale = 1.0 / cast(float64) input.count;
+        scale /= input.count;
     }
     for bin: 0..input.count - 1 {
         re, im: float64;
         phase_index: s64;
         for index: 0..input.count - 1 {
             // Modular addition avoids k*n overflow and keeps the angle within one turn.
-            angle := sign * TAU64 * cast(float64) phase_index / cast(float64) input.count;
+            angle := sign * TAU64 * phase_index / input.count;
             cosine := cos(angle);
             sine := sin(angle);
-            re += (cast(float64) input[index].re) * cosine - (cast(float64) input[index].im) * sine;
-            im += (cast(float64) input[index].re) * sine + (cast(float64) input[index].im) * cosine;
+            re += input[index].re * cosine - input[index].im * sine;
+            im += input[index].re * sine + input[index].im * cosine;
             phase_index += bin;
             if phase_index >= input.count {
                 phase_index -= input.count;
@@ -74,8 +75,8 @@ dft :: (input: []Complex, output: []Complex, direction: Fourier_Direction = .For
  * - Uses the same signs, normalization and natural bin order as dft.
  *   Only Inverse divides the result by N; no windowing or fftshift is applied.
  * - Requires O(1) extra storage and performs no memory allocations.
- * - Stores intermediate results as float32 Complex values and computes twiddle
- *   factors from float64 angles without accumulating successive rotations.
+ * - Samples, phase angles and intermediate results use float32. Twiddle factors
+ *   are computed directly without accumulating successive rotations.
  *
  * @pre Samples must be finite and within the numerical range of the transform.
  *      Sample values are not validated.
@@ -103,7 +104,7 @@ fft_inplace :: (values: []Complex, direction: Fourier_Direction = .Forward) -> s
         reversed = reversed ^ bit;
     }
 
-    sign: float64 = -1.0;
+    sign: float = -1.0;
     if direction == .Inverse {
         sign = 1.0;
     }
@@ -111,7 +112,7 @@ fft_inplace :: (values: []Complex, direction: Fourier_Direction = .Forward) -> s
     while width <= values.count {
         half := width / 2;
         for offset: 0..half - 1 {
-            angle := sign * TAU64 * cast(float64) offset / cast(float64) width;
+            angle := sign * TAU * offset / width;
             cosine := cos(angle);
             sine := sin(angle);
             index := offset;
@@ -119,12 +120,12 @@ fft_inplace :: (values: []Complex, direction: Fourier_Direction = .Forward) -> s
             while index < values.count {
                 even := values[index];
                 odd := values[index + half];
-                re := (cast(float64) odd.re) * cosine - (cast(float64) odd.im) * sine;
-                im := (cast(float64) odd.re) * sine + (cast(float64) odd.im) * cosine;
-                values[index].re = cast(float) (even.re + re);
-                values[index].im = cast(float) (even.im + im);
-                values[index + half].re = cast(float) (even.re - re);
-                values[index + half].im = cast(float) (even.im - im);
+                re := odd.re * cosine - odd.im * sine;
+                im := odd.re * sine + odd.im * cosine;
+                values[index].re = even.re + re;
+                values[index].im = even.im + im;
+                values[index + half].re = even.re - re;
+                values[index + half].im = even.im - im;
                 index += width;
             }
         }
@@ -137,10 +138,11 @@ fft_inplace :: (values: []Complex, direction: Fourier_Direction = .Forward) -> s
     }
 
     if direction == .Inverse {
-        scale := 1.0 / cast(float64) values.count;
+        scale: float = 1.0;
+        scale /= values.count;
         for *value: values {
-            value.re = cast(float) (value.re * scale);
-            value.im = cast(float) (value.im * scale);
+            value.re *= scale;
+            value.im *= scale;
         }
     }
 
